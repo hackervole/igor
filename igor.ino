@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <KY040.h>
+#include <Bounce2.h>
 
 //-----------------------------------------------
 Adafruit_SSD1306 display(128, 64, &Wire, D4);
@@ -13,6 +14,8 @@ Adafruit_SSD1306 display(128, 64, &Wire, D4);
 KY040 encoder(CLK, DT);
 volatile bool needDisplayUpdate = false;
 volatile bool shouldExitIdle = false;
+
+Bounce2::Button pushButton;
 
 //-----------------------------------------------
 int flowMinutes = 0;   // Total flow minutes
@@ -29,8 +32,6 @@ int initialCountdownValue = 20;  // Store the countdown value when selected
 unsigned long previousMillis = 0;  // For counting logic
 int elapsedMinutes = 0;
 bool isCounting = false;
-unsigned long buttonDebounceTime = 0;
-const unsigned long buttonDebounceDelay = 800;  // Debounce delay
 
 // IDLE mode extended behavior
 const unsigned long displayOffTimeLimit = 30 * 60000;  // 30 minutes in milliseconds
@@ -43,6 +44,13 @@ void setup() {
   initHardware();
   initDisplay();
   updateDisplay();
+
+  delay(1000);
+
+  Serial.println("Hello, IGOR!");
+  Serial.println("Using the Bounce2 library");
+  Serial.println("  And KY040 encoder library version " KY040_VERSION " by codingABI");
+  Serial.println("  Also using the Adafruit SSD1306 library");
   Serial.println("Setup complete, starting loop...");
 }
 
@@ -76,6 +84,11 @@ void initHardware() {
   // Interrupts for encoder pins
   attachInterrupt(digitalPinToInterrupt(CLK), ISR_rotaryEncoder, CHANGE);
   attachInterrupt(digitalPinToInterrupt(DT), ISR_rotaryEncoder, CHANGE);
+
+  // Debouncer for the button
+  pushButton.attach(SW, INPUT);
+  pushButton.interval(20);
+  pushButton.setPressedState(LOW);
 
   Serial.begin(9600);
 }
@@ -153,20 +166,10 @@ void updateDisplay() {
 }
 
 //=========================================================
-// Detect button presses with debounce logic
-bool buttonPressed() {
-  if (digitalRead(SW) == LOW && (millis() - buttonDebounceTime > buttonDebounceDelay)) {
-    buttonDebounceTime = millis();  // Debounce
-    lastActivityTime = millis();  // Reset inactivity timer
-    return true;
-  }
-  return false;
-}
-
-//=========================================================
 // Handle button presses and manage state transitions
 void handleButtonPresses(unsigned long currentMillis) {
-  if (!buttonPressed()) return;
+  pushButton.update();
+  if (!pushButton.pressed()) return;
 
   switch (currentState) {
     case MENU:
@@ -189,6 +192,9 @@ void handleButtonPresses(unsigned long currentMillis) {
 
     case COUNTING_DOWN:
       stopCountingDown();
+      break;
+    case IDLE:
+      shouldExitIdle = true;
       break;
   }
   updateDisplay();
@@ -383,7 +389,7 @@ void handleInactivity(unsigned long currentMillis) {
   }
 
   // Exit IDLE if any rotary or button action happens
-  if (currentState == IDLE && (shouldExitIdle || buttonPressed())) {
+  if (currentState == IDLE && shouldExitIdle) {
     currentState = MENU;
     lastActivityTime = millis();  // Reset inactivity timer upon exiting IDLE
     
