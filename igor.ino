@@ -78,34 +78,12 @@ void initDisplay() {
     Serial.println(F("SSD1306 allocation failed"));
     for (;;);
   }
+  display.setRotation(2);
   display.clearDisplay(); 
   Serial.println("Display initialized.");
 }
 
-//=========================================================
-// Update the OLED display with the current state
-void updateDisplay() {
-  display.setTextColor(WHITE);
-  display.clearDisplay();
-
-  // Display top row
-  String topRowText;
-  
-  if (currentState == COUNTING_UP) {
-    topRowText = "Focus! \x18";  // Focus with upward triangle for counting UP
-  } else if (currentState == COUNTING_DOWN) {
-    topRowText = "Focus! \x19";  // Focus with downward triangle for counting DOWN
-  } else {
-    topRowText = "Flow: " + String(flowMinutes);  // Display total flow minutes when not counting
-  }
-
-  int topRowTextWidth = topRowText.length() * 12;  // TextSize 2, so 12 pixels per char
-  int topRowX = (128 - topRowTextWidth) / 2;  // Center the text on the top row
-
-  display.setTextSize(2);  // Larger size for top row
-  display.setCursor(topRowX, 0);  // Centered on top row
-  display.print(topRowText);
-
+void writeMainText(int16_t row) {
   // Display main row (menu or counting values)
   String mainRowText;
   
@@ -120,11 +98,47 @@ void updateDisplay() {
   }
   
   int mainRowTextWidth = mainRowText.length() * 24;  // TextSize 4, so 24 pixels per char
-  int mainRowX = (128 - mainRowTextWidth) / 2;  // Calculate centered X position
+  int mainRowX = (display.width() - mainRowTextWidth) / 2;  // Calculate centered X position
 
   display.setTextSize(4);  // Larger size for main row
-  display.setCursor(mainRowX, 30);  // Centered on main row
+  display.setCursor(mainRowX, row);  // Centered on main row
   display.print(mainRowText);
+}
+
+void writeSecondaryText(int16_t row) {
+  // Display top row
+  String topRowText;
+  
+  if (currentState == COUNTING_UP) {
+    topRowText = "Focus! \x18";  // Focus with upward triangle for counting UP
+  } else if (currentState == COUNTING_DOWN) {
+    topRowText = "Focus! \x19";  // Focus with downward triangle for counting DOWN
+  } else {
+    topRowText = "Flow: " + String(flowMinutes);  // Display total flow minutes when not counting
+  }
+
+  int topRowTextWidth = topRowText.length() * 12;  // TextSize 2, so 12 pixels per char
+  int topRowX = (display.width() - topRowTextWidth) / 2;  // Center the text on the top row
+
+  display.setTextSize(2);  // Larger size for top row
+  display.setCursor(topRowX, row);  // Centered on top row
+  display.print(topRowText);
+}
+
+//=========================================================
+// Update the OLED display with the current state
+void updateDisplay() {
+  display.setTextColor(WHITE);
+  display.clearDisplay();
+
+  if (display.getRotation() == 2) {
+    // Upside-down screen
+    writeMainText(8);
+    writeSecondaryText(display.height() - 16);
+  } else {
+    writeSecondaryText(0);
+    writeMainText(30);
+  }
   
   display.display();  // Show the updated display
 }
