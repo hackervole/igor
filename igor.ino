@@ -34,7 +34,7 @@ int elapsedMinutes = 0;
 bool isCounting = false;
 
 // IDLE mode extended behavior
-const unsigned long displayOffTimeLimit = 30 * 60000;  // 30 minutes in milliseconds
+const unsigned long displayOffTimeLimit = 3 * 60000;  // 30 minutes in milliseconds
 
 unsigned long idleStartTime = 0;  // Track when IDLE mode starts
 bool displayOff = false;  // Track if the display is off
@@ -312,7 +312,7 @@ void successAnimation() {
 
 //=========================================================
 // ISR to handle the interrupts for encoder pins
-ICACHE_RAM_ATTR void ISR_rotaryEncoder() {
+IRAM_ATTR void ISR_rotaryEncoder() {
   int rotation = 0;
 
   // Process pin states for CLK and DT
@@ -385,7 +385,7 @@ void handleInactivity(unsigned long currentMillis) {
     displayOff = true;
     display.ssd1306_command(SSD1306_DISPLAYOFF);  // Turn off the display
     Serial.print(millis());  // Print the current time in milliseconds
-    Serial.println(" - Display turned off after 30 minutes of IDLE.");
+    Serial.println(" - Display turned off due to IDLE.");
   }
 
   // Exit IDLE if any rotary or button action happens
