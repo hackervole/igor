@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
+#include <KY040.h>
 
 //-----------------------------------------------
 Adafruit_SSD1306 display(128, 64, &Wire, D4);
@@ -8,6 +9,10 @@ Adafruit_SSD1306 display(128, 64, &Wire, D4);
 #define CLK    D6
 #define DT     D7
 #define SW     D4
+
+KY040 encoder(CLK, DT);
+volatile bool needDisplayUpdate = false;
+volatile bool shouldExitIdle = false;
 
 //-----------------------------------------------
 int flowMinutes = 0;   // Total flow minutes
@@ -27,10 +32,6 @@ bool isCounting = false;
 unsigned long buttonDebounceTime = 0;
 const unsigned long buttonDebounceDelay = 800;  // Debounce delay
 
-// Rotary encoder debounce variables
-unsigned long lastRotaryTime = 0;
-const unsigned long rotaryDebounceDelay = 150;  // Faster debounce for rotary encoder
-
 // IDLE mode extended behavior
 const unsigned long displayOffTimeLimit = 30 * 60000;  // 30 minutes in milliseconds
 
@@ -48,9 +49,6 @@ void setup() {
 //=========================================================
 void loop() {
   unsigned long currentMillis = millis();
-  
-  // Handle rotary encoder input
-  handleRotaryInput();
 
   // Handle button presses and states
   handleButtonPresses(currentMillis);
@@ -60,14 +58,25 @@ void loop() {
 
   // Handle inactivity
   handleInactivity(currentMillis);
+
+  // Check if we need to update the display due to encoder activity
+  if (needDisplayUpdate) {
+    updateDisplay();
+    cli();
+    needDisplayUpdate = false;
+    sei();
+  }
 }
 
 //=========================================================
 // Initialize hardware pins and serial communication
 void initHardware() {
-  pinMode(CLK, INPUT);
-  pinMode(DT, INPUT);
   pinMode(SW, INPUT);
+
+  // Interrupts for encoder pins
+  attachInterrupt(digitalPinToInterrupt(CLK), ISR_rotaryEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(DT), ISR_rotaryEncoder, CHANGE);
+
   Serial.begin(9600);
 }
 
@@ -296,47 +305,34 @@ void successAnimation() {
 }
 
 //=========================================================
-// Rotary Encoder Rotation Detection
-int getRotation() {
-  static int previousCLK = digitalRead(CLK);
-  int currentCLK = digitalRead(CLK);
-  
-  if (currentCLK == LOW && previousCLK == HIGH && (millis() - lastRotaryTime > rotaryDebounceDelay)) {
-    lastRotaryTime = millis();  // Debounce
-    int DTValue = digitalRead(DT);  // Read DT to determine direction
+// ISR to handle the interrupts for encoder pins
+ICACHE_RAM_ATTR void ISR_rotaryEncoder() {
+  int rotation = 0;
 
-    previousCLK = currentCLK;  // Update previous CLK for next iteration
-
-    return (DTValue != currentCLK) ? 1 : -1;  // Clockwise or counterclockwise
+  // Process pin states for CLK and DT
+  switch (encoder.getRotation()) {
+    case KY040::CLOCKWISE:
+      rotation = 1;
+      break;
+    case KY040::COUNTERCLOCKWISE:
+      rotation = -1;
+      break;
+    default:
+      // No rotation
+      return;
   }
-  
-  previousCLK = currentCLK;
-  return 0;  // No rotation
-}
-
-//=========================================================
-// Handle rotary input for menu and countdown selection
-void handleRotaryInput() {
-  int rotation = getRotation();
-  if (rotation == 0) return;  // No rotation detected
-  
-  lastActivityTime = millis();  // Reset inactivity timer on any valid rotation
-  Serial.print(millis());  // Print the current time in milliseconds
-  Serial.print(" - Rotation detected, activity timer reset. Rotation: ");
-  Serial.println(rotation);
 
   if (currentState == MENU) {
     menuIndex = (menuIndex + rotation + 3) % 3;  // Update for 3 menu options: UP, DOWN, Reset
-    updateDisplay();
-    Serial.print(millis());  // Print the current time in milliseconds
-    Serial.print(" - Menu option: "); Serial.println(menuOptions[menuIndex]);
+    needDisplayUpdate = true;
   } else if (currentState == SELECTING_DOWN_DURATION) {
     countdownValue = max(1, countdownValue + rotation);
-    updateDisplay();
-    Serial.print(millis());  // Print the current time in milliseconds
-    Serial.print(" - Countdown value: "); Serial.println(countdownValue);
+    needDisplayUpdate = true;
+  } else if (currentState == IDLE) {
+    shouldExitIdle = true;
   }
 }
+
 //=========================================================
 // Handle inactivity and switch to IDLE if necessary
 void handleInactivity(unsigned long currentMillis) {
@@ -367,6 +363,7 @@ void handleInactivity(unsigned long currentMillis) {
       if (currentState != IDLE) {
         currentState = IDLE;
         idleStartTime = millis();  // Record when IDLE mode starts
+        shouldExitIdle = false;
         updateDisplay();
         Serial.print(millis());  // Print the current time in milliseconds
         Serial.println(" - IDLE state entered due to inactivity.");
@@ -386,7 +383,7 @@ void handleInactivity(unsigned long currentMillis) {
   }
 
   // Exit IDLE if any rotary or button action happens
-  if (currentState == IDLE && (getRotation() != 0 || buttonPressed())) {
+  if (currentState == IDLE && (shouldExitIdle || buttonPressed())) {
     currentState = MENU;
     lastActivityTime = millis();  // Reset inactivity timer upon exiting IDLE
     
