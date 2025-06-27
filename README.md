@@ -65,6 +65,13 @@ Affiliate links to grab the components (if you want to use them):
 One sketch file, using the IDE of your choice (e.g. the main Arduino IDE works well with the added modules for D1 mini + libraries - that's what I use).  
 Please check everything is working before soldering and squeezing everything into the 3D printed shell.
 
+The ESP8266 core can be found here: https://github.com/esp8266/Arduino
+
+Libraries (all available on the Arduino IDE library manager):
+- Bounce2
+- KY040 (rotary encoder)
+- Adafruit ASD1306
+
 ## Assembly
 
 There are only 3 components to this:
