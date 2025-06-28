@@ -47,11 +47,11 @@ void setup() {
 
   delay(1000);
 
-  Serial.println("Hello, IGOR!");
-  Serial.println("Using the Bounce2 library");
-  Serial.println("  And KY040 encoder library version " KY040_VERSION " by codingABI");
-  Serial.println("  Also using the Adafruit SSD1306 library");
-  Serial.println("Setup complete, starting loop...");
+  Serial.println(F("Hello, IGOR!"));
+  Serial.println(F("Using the Bounce2 library"));
+  Serial.println(F("  And KY040 encoder library version " KY040_VERSION " by codingABI"));
+  Serial.println(F("  Also using the Adafruit SSD1306 library"));
+  Serial.println(F("Setup complete, starting loop..."));
 }
 
 //=========================================================
@@ -102,7 +102,7 @@ void initDisplay() {
   }
   display.setRotation(2);
   display.clearDisplay(); 
-  Serial.println("Display initialized.");
+  Serial.println(F("Display initialized."));
 }
 
 void writeMainText(int16_t row) {
