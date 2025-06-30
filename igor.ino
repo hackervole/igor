@@ -276,8 +276,8 @@ void handleCounting(unsigned long currentMillis) {
       successAnimation();
       currentState = MENU;
       isCounting = false;
-      Serial.println("Countdown finished, returning to MENU.");
       lastActivityTime = currentMillis; // Reset inactivity so we don't immediately go to IDLE
+      Serial.println(F("Countdown finished, returning to MENU."));
     }
     updateDisplay();
     Serial.print("Counting DOWN: "); Serial.println(countdownValue);
@@ -374,7 +374,7 @@ void handleInactivity(unsigned long currentMillis) {
         shouldExitIdle = false;
         updateDisplay();
         Serial.print(millis());  // Print the current time in milliseconds
-        Serial.println(" - IDLE state entered due to inactivity.");
+        Serial.println(F(" - IDLE state entered due to inactivity."));
       }
     }
   } else {
@@ -387,7 +387,7 @@ void handleInactivity(unsigned long currentMillis) {
     displayOff = true;
     display.ssd1306_command(SSD1306_DISPLAYOFF);  // Turn off the display
     Serial.print(millis());  // Print the current time in milliseconds
-    Serial.println(" - Display turned off due to IDLE.");
+    Serial.println(F(" - Display turned off due to IDLE."));
   }
 
   // Exit IDLE if any rotary or button action happens
@@ -400,12 +400,12 @@ void handleInactivity(unsigned long currentMillis) {
       display.ssd1306_command(SSD1306_DISPLAYON);
       displayOff = false;
       Serial.print(millis());  // Print the current time in milliseconds
-      Serial.println(" - Display turned back on.");
+      Serial.println(F(" - Display turned back on."));
     }
 
     updateDisplay();
     Serial.print(millis());  // Print the current time in milliseconds
-    Serial.println(" - Exiting IDLE mode. Back to MENU.");
+    Serial.println(F(" - Exiting IDLE mode. Back to MENU."));
   }
 }
 
