@@ -19,20 +19,24 @@ Bounce2::Button pushButton;
 
 //-----------------------------------------------
 int flowMinutes = 0;   // Total flow minutes
-int menuIndex = 0;     // 0 for UP, 1 for DOWN, 2 for Reset
-String menuOptions[3] = {"UP", "DOWN", "Reset"};  // Label reset option as "Reset"
-unsigned long lastActivityTime = 0;  // For inactivity detection
-constexpr unsigned long inactivityLimit = 3 * 60000;  // 3 minutes in milliseconds
+int menuIndex = 0;     // 0 for UP, 1 for DOWN, 2 for Break, 3 for Reset
+String menuOptions[] = {"UP", "DOWN", "BREAK", "Reset"};  // Label reset option as "Reset"
+constexpr size_t MENU_COUNT = sizeof(menuOptions) / sizeof(menuOptions[0]);
 
 enum State { MENU, COUNTING_UP, COUNTING_DOWN, SELECTING_DOWN_DURATION, IDLE };
 State currentState = MENU;
+bool countdownIsBreak = false;
 
-int countdownValue = 20;  // Default value for countdown
-int initialCountdownValue = 20;  // Store the countdown value when selected
+constexpr int DEFAULT_COUNTDOWN = 20;
+constexpr int DEFAULT_BREAK = 5;
+int countdownValue = DEFAULT_COUNTDOWN;  // Default value for countdown
+int initialCountdownValue = DEFAULT_COUNTDOWN;  // Store the countdown value when selected
 unsigned long previousMillis = 0;  // For counting logic
 int elapsedMinutes = 0;
 bool isCounting = false;
 
+unsigned long lastActivityTime = 0;  // For inactivity detection
+constexpr unsigned long inactivityLimit = 3 * 60000;  // 3 minutes in milliseconds
 // IDLE mode extended behavior
 constexpr unsigned long displayOffTimeLimit = 3 * 60000;  // 3 minutes in milliseconds
 
@@ -114,7 +118,7 @@ void writeMainText(int16_t row) {
   String mainRowText;
   
   if (currentState == MENU) {
-    mainRowText = menuOptions[menuIndex];  // Display UP, DOWN, or Reset in the menu
+    mainRowText = menuOptions[menuIndex];  // Display menu text
   } else if (currentState == COUNTING_UP) {
     mainRowText = String(elapsedMinutes);  // Display counting up minutes
   } else if (currentState == COUNTING_DOWN || currentState == SELECTING_DOWN_DURATION) {
@@ -138,7 +142,11 @@ void writeSecondaryText(int16_t row) {
   if (currentState == COUNTING_UP) {
     topRowText = "Focus! \x18";  // Focus with upward triangle for counting UP
   } else if (currentState == COUNTING_DOWN) {
-    topRowText = "Focus! \x19";  // Focus with downward triangle for counting DOWN
+    if (countdownIsBreak) {
+      topRowText = "Break...";
+    } else {
+      topRowText = "Focus! \x19";  // Focus with downward triangle for counting DOWN
+    }
   } else {
     topRowText = "Flow: " + String(flowMinutes);  // Display total flow minutes when not counting
   }
@@ -181,7 +189,9 @@ void handleButtonPresses(unsigned long currentMillis) {
         startCountingUp();
       } else if (menuIndex == 1) {  // DOWN selected
         startSelectingDownDuration();
-      } else if (menuIndex == 2) {  // Reset selected
+      } else if (menuIndex == 2) {  // BREAK selected
+        startSelectingBreakDuration();
+      } else if (menuIndex == 3) {  // Reset selected
         resetFlowMinutes();  // Reset the total focus time to 0
       }
       break;
@@ -218,8 +228,18 @@ void startCountingUp() {
 // Start selecting the countdown duration
 void startSelectingDownDuration() {
   currentState = SELECTING_DOWN_DURATION;
-  countdownValue = 20;
+  countdownValue = DEFAULT_COUNTDOWN;
+  countdownIsBreak = false;
   Serial.println("Selecting DOWN duration.");
+}
+
+//=========================================================
+// Start selecting the break duration
+void startSelectingBreakDuration() {
+  currentState = SELECTING_DOWN_DURATION;
+  countdownValue = DEFAULT_BREAK;
+  countdownIsBreak = true;
+  Serial.println("Selecting BREAK duration.");
 }
 
 //=========================================================
@@ -244,7 +264,9 @@ void stopCountingUp() {
 //=========================================================
 // Stop counting down and return to menu
 void stopCountingDown() {
-  flowMinutes += (initialCountdownValue - countdownValue);
+  if (!countdownIsBreak) {
+    flowMinutes += (initialCountdownValue - countdownValue);
+  }
   successAnimation();
   currentState = MENU;
   isCounting = false;
@@ -272,12 +294,9 @@ void handleCounting(unsigned long currentMillis) {
   } else if (currentState == COUNTING_DOWN) {
     countdownValue--;
     if (countdownValue <= 0) {
-      flowMinutes += initialCountdownValue;
-      successAnimation();
-      currentState = MENU;
-      isCounting = false;
+      countdownValue = 0;
+      stopCountingDown();
       lastActivityTime = currentMillis; // Reset inactivity so we don't immediately go to IDLE
-      Serial.println(F("Countdown finished, returning to MENU."));
     }
     updateDisplay();
     Serial.print("Counting DOWN: "); Serial.println(countdownValue);
@@ -304,8 +323,13 @@ void successAnimation() {
   
   display.clearDisplay();
   display.setTextSize(2);
-  display.setCursor(20, 20);
-  display.print("SUCCESS!");
+  if (currentState == State::COUNTING_DOWN && countdownIsBreak) {
+    display.setCursor(15, 20);
+    display.print("LET'S GO!");
+  } else {
+    display.setCursor(20, 20);
+    display.print("SUCCESS!");
+  }
   display.display();
   delay(1000);
   display.clearDisplay();
@@ -331,7 +355,7 @@ IRAM_ATTR void ISR_rotaryEncoder() {
   }
 
   if (currentState == MENU) {
-    menuIndex = (menuIndex + rotation + 3) % 3;  // Update for 3 menu options: UP, DOWN, Reset
+    menuIndex = (menuIndex + rotation + MENU_COUNT) % MENU_COUNT;
     needDisplayUpdate = true;
   } else if (currentState == SELECTING_DOWN_DURATION) {
     countdownValue = max(1, countdownValue + rotation);
