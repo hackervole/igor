@@ -22,7 +22,7 @@ int flowMinutes = 0;   // Total flow minutes
 int menuIndex = 0;     // 0 for UP, 1 for DOWN, 2 for Reset
 String menuOptions[3] = {"UP", "DOWN", "Reset"};  // Label reset option as "Reset"
 unsigned long lastActivityTime = 0;  // For inactivity detection
-const unsigned long inactivityLimit = 3 * 60000;  // 3 minutes in milliseconds
+constexpr unsigned long inactivityLimit = 3 * 60000;  // 3 minutes in milliseconds
 
 enum State { MENU, COUNTING_UP, COUNTING_DOWN, SELECTING_DOWN_DURATION, IDLE };
 State currentState = MENU;
@@ -34,7 +34,7 @@ int elapsedMinutes = 0;
 bool isCounting = false;
 
 // IDLE mode extended behavior
-const unsigned long displayOffTimeLimit = 3 * 60000;  // 30 minutes in milliseconds
+constexpr unsigned long displayOffTimeLimit = 3 * 60000;  // 3 minutes in milliseconds
 
 unsigned long idleStartTime = 0;  // Track when IDLE mode starts
 bool displayOff = false;  // Track if the display is off
@@ -201,6 +201,7 @@ void handleButtonPresses(unsigned long currentMillis) {
       shouldExitIdle = true;
       break;
   }
+  lastActivityTime = currentMillis; // Reset inactivity timer
   updateDisplay();
 }
 
@@ -210,7 +211,6 @@ void startCountingUp() {
   currentState = COUNTING_UP;
   elapsedMinutes = 0;
   isCounting = true;
-  lastActivityTime = millis();  // Reset inactivity timer
   Serial.println("Counting UP started.");
 }
 
@@ -219,7 +219,6 @@ void startCountingUp() {
 void startSelectingDownDuration() {
   currentState = SELECTING_DOWN_DURATION;
   countdownValue = 20;
-  lastActivityTime = millis();  // Reset inactivity timer
   Serial.println("Selecting DOWN duration.");
 }
 
@@ -229,7 +228,6 @@ void confirmCountdownSelection() {
   initialCountdownValue = countdownValue;
   currentState = COUNTING_DOWN;
   isCounting = true;
-  lastActivityTime = millis();  // Reset inactivity timer
   Serial.print("Counting DOWN started with "); Serial.print(countdownValue); Serial.println(" minutes.");
 }
 
@@ -258,7 +256,6 @@ void stopCountingDown() {
 void resetFlowMinutes() {
   flowMinutes = 0;
   Serial.println("Flow minutes reset to 0.");
-  updateDisplay();  // Update the display to show the reset value
 }
 
 //=========================================================
@@ -280,6 +277,7 @@ void handleCounting(unsigned long currentMillis) {
       currentState = MENU;
       isCounting = false;
       Serial.println("Countdown finished, returning to MENU.");
+      lastActivityTime = currentMillis; // Reset inactivity so we don't immediately go to IDLE
     }
     updateDisplay();
     Serial.print("Counting DOWN: "); Serial.println(countdownValue);
